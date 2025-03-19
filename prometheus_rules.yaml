@@ -1,0 +1,172 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app: kube-prometheus-stack
+    release: kube-prometheus-stack
+  name: main-rules
+spec:
+  groups:
+    # - name: node-cpu
+    #   rules:
+    #     - alert: CPU-Load-Warning
+    #       expr: sum(node_load1) by (kubernetes_node, instance) > 3
+    #       for: 2m
+    #       labels:
+    #         severity: warning
+    #       annotations:
+    #         summary: 'CPU Load Warning (1m)'
+    #         description: 'Node {{ $labels.instance }}, CPU Load average > 3 over last 1 minute: {{ $value }}'
+    #     - alert: CPU-Load-Critical
+    #       expr: sum(node_load1) by (kubernetes_node, instance) > 4
+    #       for: 2m
+    #       labels:
+    #         severity: warning
+    #       annotations:
+    #         summary: 'CPU Load CRITICAL (1m)'
+    #         description: 'Node {{ $labels.instance }}, CPU Load average > 4 over last 1 minute: {{ $value }}'
+        # - alert: CPU-Load-Warning
+        #   expr: sum(node_load5) by (kubernetes_node, instance) > 6
+        #   for: 2m
+        #   labels:
+        #     severity: warning
+        #   annotations:
+        #     summary: 'CPU Load Warning (5m)'
+        #     description: 'Node {{ $labels.instance }}, CPU Load average > 18 over last 5 minutes: {{ $value }}'
+        # - alert: CPU-Load-Critical
+        #   expr: sum(node_load5) by (kubernetes_node, instance) > 8
+        #   for: 2m
+        #   labels:
+        #     severity: critical
+        #   annotations:
+        #     summary: 'CPU Load CRITICAL (5m)'
+        #     description: 'Node {{ $labels.instance }}, CPU Load average > 20 over last 5 minutes: {{ $value }}'
+        # - alert: CPU-Load-Warning
+        #   expr: sum(node_load15) by (kubernetes_node, instance) >
+        #   for: 2m
+        #   labels:
+        #     severity: warning
+        #   annotations:
+        #     summary: 'CPU Load Warning (15m)'
+        #     description: 'Node {{ $labels.instance }}, CPU Load average > 16 over last 15 minutes: {{ $value }}'
+        # - alert: CPU-Load-Critical
+        #   expr: sum(node_load15) by (kubernetes_node, instance) > 18
+        #   for: 2m
+        #   labels:
+        #     severity: critical
+        #   annotations:
+        #     summary: 'CPU Load CRITICAL (15m)'
+        #     description: 'Node {{ $labels.instance }}, CPU Load average > 18 over last 15 minutes: {{ $value }}'
+    # - name: nodes
+    #   rules:
+    #     - alert: Node-Count-TooHigh
+    #       expr: count(kube_node_info) > 8
+    #       for: 1m
+    #       labels:
+    #         severity: notify
+    #       annotations:
+    #         summary: 'Cluster increased'
+    #         description: 'The cluster is running more than 8 nodes'
+    #     - alert: Pod balance
+    #       expr: sum by (node, created_by_name) (kube_pod_info{created_by_name=~"main-.*"}) > 2
+    #       for: 2m
+    #       labels:
+    #         severity: warning
+    #       annotations:
+    #         summary: Pod balance > 2
+    #         description: 'A node is running more than 2 main pods in {{ $labels.namespace }}'
+    #     - alert: Node-Count-ZERO
+    #       expr: count(kube_node_info) < 1
+    #       for: 1m
+    #       labels:
+    #         severity: critical
+    #       annotations:
+    #         summary: 'Zero Nodes in cluster'
+    #         description: 'The cluster does not have any nodes running'
+    #     - alert: Node-CPU-load-high
+    #       expr: (avg(rate(node_cpu_seconds_total{mode="idle"}[2m])) by (instance)) < 0.2
+    #       for: 5m
+    #       labels:
+    #         severity: warning
+    #       annotations:
+    #         summary: 'High CPU Usage on worker node'
+    #         description: 'Node {{ $labels.instance }} CPU usage > 80%.  IDLE CPU state = {{ $value }}'
+    #     - alert: Node-disk-low
+    #       expr: avg by(instance) (node_filesystem_avail_bytes{fstype="xfs"} / node_filesystem_size_bytes{fstype="xfs"}) < 0.20
+    #       for: 2m
+    #       labels:
+    #         severity: warning
+    #       annotations:
+    #         summary: 'Node Disk Space Low'
+    #         description: 'Node {{ $labels.instance }} Disk Space < 20%.  Disk space available / total = {{ $value }}'
+    #     - alert: Node-disk-critical
+    #       expr: avg by(instance) (node_filesystem_avail_bytes{fstype="xfs"} / node_filesystem_size_bytes{fstype="xfs"}) < 0.10
+    #       for: 2m
+    #       labels:
+    #         severity: critical
+    #       annotations:
+    #         summary: 'Node Disk Space Critical'
+    #         description: 'Node {{ $labels.instance }} CRITICAL Disk Space < 10%.  Disk space available / total = {{ $value }}'
+    # - name: pods
+    #   rules:
+    #     - alert: Pod-Restart-Check
+    #       expr: increase(kube_pod_container_status_restarts_total[1h]) > 4
+    #       for: 5m
+    #       labels:
+    #         severity: warning
+    #       annotations:
+    #         summary: 'Pod is restarting too frequently'
+    #         description: 'Pod {{ $labels.namespace }} / {{ $labels.pod }} was restarted {{ $value }} times within the last hour'
+    # - name: node memory
+    #   rules:
+    #     - alert: Low memory Warning
+    #       expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 25
+    #       for: 2m
+    #       labels:
+    #         severity: warning
+    #       annotations:
+    #         summary: Memory Low Warning (instance {{ $labels.instance }})
+    #         description: 'Node {{ $labels.instance }}, Node memory < 25% remaining: {{ $value }}'
+    #     - alert: Low memory CRITICAL
+    #       expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
+    #       for: 2m
+    #       labels:
+    #         severity: critical
+    #       annotations:
+    #         summary: memory low CRITICAL (instance {{ $labels.instance }})
+    #         description: 'Node {{ $labels.instance }}, Node memory < 10% remaining: {{ $value }}'
+    - name: NodeNotReady
+      rules:
+        - alert: Node-NotReady-State
+          expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: 'Kubernetes Node not ready (instance {{ $labels.instance }})'
+            description: 'Node {{ $labels.node }} has been unready for a long time\nVALUE = {{ $value }}\nLABELS = {{ $labels }}'
+  # groups:
+  #   - name: Instances
+  #     rules:
+  #       - alert: InstanceDown
+  #         expr: up == 0
+  #         for: 5m
+  #         labels:
+  #           severity: page
+  #         annotations:
+  #           description: '{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 5 minutes.'
+  #           summary: 'Instance {{ $labels.instance }} down'
+  ## DEPRECATED DEFAULT VALUE, unless explicitly naming your files, please use alerting_rules.yml
+
+
+
+  # - name: node-alertss
+  #   rules:
+  #   - alert: NodeNotReady
+  #     expr: kube_node_status_condition{condition="Ready", status="true"} == 0
+  #     for: 1m
+  #     labels:
+  #       severity: critical
+  #     annotations:
+  #       summary: "Node {{ $labels.node }} is NotReady"
+  #       description: "Node {{ $labels.node }} has been NotReady for over 1 minutes."
