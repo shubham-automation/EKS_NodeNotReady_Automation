@@ -1,0 +1,156 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CloudFormation template for API Gateway with Lambda integration to reboot EC2 instances
+
+Parameters:
+  ApiGatewayStageName:
+    Description: Please enter the Stage name for api gateway
+    Type: String
+    Default: staging
+
+Resources:
+  Ec2RebootLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.lambda_handler
+      Runtime: python3.9
+      Timeout: 300
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import time
+
+          ec2 = boto3.client('ec2')
+
+          def lambda_handler(event, context):  
+              private_dns = event['alerts'][0]['labels']['node']
+              
+              ec2_response = ec2.describe_instances(
+                  Filters=[
+                      {
+                          'Name': 'private-dns-name',
+                          'Values': [private_dns]
+                      }
+                  ]
+              )
+
+              instance_id = None
+              for reservation in ec2_response['Reservations']:
+                  for instance in reservation['Instances']:
+                      instance_id = instance['InstanceId']
+                      print(f"Instance ID for private DNS {private_dns}: {instance_id}")
+                      
+                      instance_state = instance['State']['Name']
+                      print(f"Current instance state: {instance_state}")
+                      
+                      if instance_state == 'stopped':
+                          print(f"Starting stopped instance {instance_id}")
+                          start_response = ec2.start_instances(
+                              InstanceIds=[instance_id]
+                          )
+                          
+                          waiter = ec2.get_waiter('instance_running')
+                          print(f"Waiting for instance {instance_id} to be in running state...")
+                          waiter.wait(InstanceIds=[instance_id])
+                          print(f"Instance {instance_id} is now running")
+                          
+                      print(f"Rebooting instance {instance_id}")
+                      reboot_response = ec2.reboot_instances(
+                          InstanceIds=[instance_id]
+                      )
+                      print("Instance has been rebooted successfully: ")
+                      print(reboot_response)
+                      
+              if instance_id is None:
+                  print(f"No instance found with private DNS {private_dns}")
+              
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps('Instance reboot process completed')
+              }
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: Ec2ControlPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:RebootInstances
+                  - ec2:DescribeInstances
+                  - ec2:StartInstances
+                Resource: '*'
+        - PolicyName: LambdaLogsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: Ec2ControlApi
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  AlertResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: alert
+
+  AlertPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref AlertResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Ec2RebootLambda.Arn}/invocations'
+        RequestTemplates:
+          application/json: '{"alerts": $input.json("$")}'
+        IntegrationResponses:
+          - StatusCode: 200
+      MethodResponses:
+        - StatusCode: 200
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: AlertPostMethod
+    Properties:
+      RestApiId: !Ref RestApi
+      StageName: !Ref ApiGatewayStageName
+
+  LambdaApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref Ec2RebootLambda
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/POST/alert'
+
+Outputs:
+  ApiUrl:
+    Description: URL of the API endpoint
+    Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiGatewayStageName}/alert'
