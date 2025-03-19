@@ -1,0 +1,42 @@
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 1m
+      slack_api_url: '<SLACK_WEBHOOK_URL>'              
+    route:
+      receiver: 'node-reboot-receiver'                       # Default receiver for alerts
+      group_by: ['alertname', 'job']          # Group alerts by these labels
+      group_wait: 5s                         # Wait before sending grouped alerts
+      group_interval: 1m                      # Interval between grouped alerts
+      repeat_interval: 1m                     # Interval before re-sending unresolved alerts
+      routes:
+      - match:
+          alertname: Watchdog                 # Route Watchdog alerts to null receiver
+        receiver: 'null'
+      - match:
+          alertname: NodeNotReady
+        receiver: 'node-reboot-receiver'
+
+    receivers:
+    - name: 'slack-notifications'
+      slack_configs:
+      - channel: '#devops'             # Recipient email address
+        send_resolved: true                 # Send notifications when alerts resolve
+        text: |-
+          {{ range .Alerts }}
+            Alert: {{ .Annotations.summary }} - {{ .Labels.severity }}
+            Description: {{ .Annotations.description }}
+            Cluster: ap-southeast-2/staging-forms-eks
+            Details:
+            {{ range .Labels.SortedPairs }} • {{ .Name }}: {{ .Value }}
+            {{ end }}
+          {{ end }}
+
+    - name: node-reboot-receiver
+      webhook_configs:
+        - url: "https://bskz6wlb21.execute-api.us-east-1.amazonaws.com/prod/alert"
+          send_resolved: false
+          http_config:
+            follow_redirects: true
+
+    - name: 'null'            
